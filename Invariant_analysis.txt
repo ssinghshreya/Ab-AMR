@@ -1,0 +1,124 @@
+Script 1 
+#!/usr/bin/bash
+
+#assiging the variable to the file names
+gene_list="sample_core"
+data_file="clustered_proteins"
+final_folder="/home/bic/INVARIANT/tr_files"
+final_fasta="/home/bic/INVARIANT/final.faa"
+sorted_fasta="/home/bic/INVARIANT/sorted_fasta/"
+#while loop for reading each gene name in file
+while IFS= read  gene_name; do
+        #gene_name variable exapanded & added suffix 
+    output_file="${gene_name}.txt"
+    grep  -F "$gene_name" "$data_file" > "$output_file"
+    #read gene_name from gene_list
+done < "$gene_list"
+
+for output_file in *.txt; do
+
+        transpose_file="${output_file%.txt}_tr.txt"
+        tr '\t' '\n' <"$output_file" > "$final_folder/$transpose_file"
+done
+
+for f in /home/bic/INVARIANT/tr_files/*.txt
+do
+        sed 's/.*: //' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+done
+
+for i in /home/bic/INVARIANT/tr_files/*.txt
+do
+        ./seqtk subseq "$final_fasta" "$i" > "$i.tmp" && mv "$i.tmp" "$i"
+done
+
+for g in /home/bic/INVARIANT/tr_files/*.txt
+do
+        cp "$g" "$sorted_fasta"
+done
+~                                                                                                                                                                                                           
+~
+The above script basically, greps the core gene name, in clustered_proteins (roary _output_file), transposes it and the uses sed command to remove the colon and character (here gene name) in the header of the file before the locus tags , then these files which only contains locus tags,  is given  to seqtk (a package) for retrieving  fasta files corresponding to the particular locus tags.
+The final fasta files are stored to tr_files/ and copied to sorted_fasta/
+
+Script 2 
+#!/usr/bin/bash
+python_file="/home/bic/INVARIANT/test.py"
+for s in /home/bic/INVARIANT/sorted_fasta/*.txt
+do
+        python3 "$python_file" "$s" > "$s.tmp" && mv "$s.tmp" "$s"
+done
+~
+This script uses another script test.py (from internet ) to calculate the length of fasta sequence of each associated locus tag
+Script in Script 2 
+#!/usr/bin/python
+from Bio import SeqIO
+import sys
+cmdargs = str(sys.argv)
+for seq_record in SeqIO.parse(str(sys.argv[1]), "fasta"):
+ output_line = '%s\t%i' % \
+(seq_record.id, len(seq_record))
+ print(output_line)
+
+
+
+Script 3 
+#!/usr/bin/bash
+final_folder=/home/bic/INVARIANT/final_folder
+for file in /home/bic/INVARIANT/LEN_FILES/*.txt; do
+max_length=0
+max_length_locus=""
+
+while IFS=$'\t' read locus_tag length; do
+        if ((length > max_length)) ; then
+                max_length="$length"
+                max_length_locus="$locus_tag"
+        fi
+done < "$file"
+
+echo "the max length $max_length"
+echo "the locus tag with max length $max_length_locus"
+
+
+ninety_percent=$((max_length*90/100))
+echo "The ninety percent of $max_length is $ninety_percent"
+
+output_file="${file%.txt}_new.txt"
+awk -F"\t" -v ninety_percent="$ninety_percent" '$2 >= ninety_percent {print $0}' "$file" > "$output_file"
+
+output1="${output_file%_tr_new.txt}_locus.txt"
+awk -F"\t" '{print $1}' "$output_file" > "$output1"
+
+mv *_locus.txt "$final_folder"
+done
+
+
+for a in /home/bic/INAVARIANT/final_folder/*.txt
+do
+        ./seqtk subseq final.faa "$a" > "$a.fasta"
+mv /home/bic/INVARIANT/final_folder/*.fasta /home/bic/INVARIANT/F3
+done
+
+~
+
+The above script calculates takes the file (locus tags "\t" length ), echoes the maximum length and an its locus tag and calculates the 90 percent  of the maximum length which is saved in form of a variable , 
+and then  only redircts >= to 90% values to another file and then only selects coloum one with awk and uses agin seqtk o revieve fasta files
+
+SCRIPT 4 
+
+#!/usr/bin/bash
+output_dir=/home/bic/new_sample/F3/output
+for j in /home/bic/new_sample/F3/*.fasta; do
+        output_file="${j%_locus.txt.fasta}_msa"
+clustalo --in "$j" --cluster-size 893 --out "$output_file" --outfmt clustal
+
+done
+
+
+for z in /home/bic/new_sample/F3/*_msa; do
+        if grep -v 'CLUSTAL O(1.2.4) multiple sequence alignment' "$z" | grep -q '[.:]'; then
+    mv "$z" "$output_dir"
+ fi
+
+done
+
+The above script performs and read the consensus symbols,  if the file contains : . it redirects it to another directory
